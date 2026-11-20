@@ -1,0 +1,854 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Smart Study Reminder</title>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0b1020;color:#fff;font-family:Arial,sans-serif}
+header{background:#141d33;padding:17px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.menuBtn{font-size:25px;background:none;border:0;color:white;cursor:pointer}
+.logo{font-size:20px;font-weight:bold;color:#85a0ff}
+main{padding:16px;padding-bottom:90px}
+.page{display:none}
+.page.active{display:block}
+.card{background:#151e35;border:1px solid #283653;padding:17px;border-radius:16px;margin-bottom:15px}
+h2{font-size:20px;margin-bottom:14px}
+h3{font-size:16px;margin-bottom:10px}
+.small{font-size:13px;color:#9cabc9}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat{background:#151e35;padding:16px;border-radius:14px;border:1px solid #283653}
+.stat h2{color:#83a0ff;margin-top:10px}
+input,select{width:100%;padding:12px;background:#0d1629;color:white;border:1px solid #34425f;border-radius:10px;margin:7px 0}
+button{cursor:pointer}
+.primary{width:100%;padding:12px;background:#5478ff;color:white;border:0;border-radius:10px;margin-top:8px;font-weight:bold}
+.secondary{background:#263555;color:white;border:0;padding:11px;border-radius:9px;margin-top:7px}
+.danger{background:#492b39;color:#ffabb7;border:0;padding:9px;border-radius:8px}
+.item{background:#10192d;padding:13px;border-radius:11px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.item small{display:block;color:#a4b1cd;margin-top:5px}
+.progressbar{height:10px;background:#293651;border-radius:10px;overflow:hidden;margin:12px 0}
+.fill{height:100%;width:0;background:#6888ff;transition:.3s}
+.timer{font-size:55px;color:#83a0ff;text-align:center;margin:25px 0;font-weight:bold}
+.day{padding:12px;background:#10192d;border-left:3px solid #6988ff;margin:10px 0;border-radius:8px}
+.empty{text-align:center;color:#9ba9c6;padding:18px}
+nav{position:fixed;bottom:0;left:0;right:0;background:#141d33;display:flex;justify-content:space-around;padding:9px 2px;z-index:8}
+nav button{background:none;border:0;color:#a2afcc;font-size:10px}
+nav button.active{color:#89a2ff}
+nav span{display:block;font-size:19px;margin-bottom:3px}
+.overlay{position:fixed;inset:0;background:#0009;z-index:20;display:none}
+.overlay.show{display:block}
+.drawer{position:fixed;top:0;bottom:0;left:-290px;width:270px;background:#141d33;z-index:21;padding:22px;transition:left .25s;overflow:auto}
+.drawer.open{left:0}
+.drawerHead{padding:12px 0 25px;border-bottom:1px solid #34415d;margin-bottom:15px}
+.drawerHead h2{color:#86a0ff}
+.drawer button{width:100%;text-align:left;padding:14px;border:0;background:none;color:#e5eaff;border-radius:9px;font-size:15px}
+.drawer button:hover{background:#253451}
+#toast{display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#283958;padding:12px 18px;border-radius:10px;z-index:40}
+</style>
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#151d35">
+</head>
+
+<body>
+
+<header>
+  <button class="menuBtn" onclick="openMenu()">☰</button>
+  <div>
+    <div class="logo">🎓 Smart Study</div>
+    <div class="small" id="date"></div>
+  </div>
+</header>
+
+<div class="overlay" id="overlay" onclick="closeMenu()"></div>
+
+<!-- SIDE MENU -->
+<div class="drawer" id="drawer">
+  <div class="drawerHead">
+    <h2>🎓 Smart Study</h2>
+    <p class="small">Your personal study assistant</p>
+  </div>
+
+  <button onclick="go('dashboard')">🏠 Dashboard</button>
+  <button onclick="go('timetable')">📅 Weekly Timetable</button>
+  <button onclick="go('reminders')">⏰ Study Reminders</button>
+  <button onclick="go('timer')">⏱️ Pomodoro Timer</button>
+  <button onclick="go('progress')">📊 Study Progress</button>
+  <button onclick="go('settings')">⚙️ Settings</button>
+</div>
+
+<main>
+
+<!-- DASHBOARD -->
+<section class="page active" id="dashboard">
+  <div class="card">
+    <h2>Welcome back 👋</h2>
+    <p class="small">Stay focused. One step at a time.</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat">📚 Total study
+      <h2 id="totalTime">0 min</h2>
+    </div>
+    <div class="stat">🔥 Streak
+      <h2 id="streak">0 days</h2>
+    </div>
+    <div class="stat">⏰ Reminders
+      <h2 id="remCount">0</h2>
+    </div>
+    <div class="stat">🎯 Sessions
+      <h2 id="sessionCount">0</h2>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:15px">
+    <h3>Today's Progress</h3>
+    <p id="todayText">0 minutes studied</p>
+    <div class="progressbar"><div class="fill" id="todayFill"></div></div>
+    <p class="small" id="goalLabel"></p>
+  </div>
+
+  <div class="card">
+    <h3>Today's Reminders</h3>
+    <div id="dashReminders"></div>
+  </div>
+
+  <div class="card">
+    <h3>Quick Actions</h3>
+    <button class="primary" onclick="go('timer')">▶ Start Studying</button>
+    <button class="secondary" onclick="go('reminders')">＋ Add Reminder</button>
+  </div>
+</section>
+
+<!-- REMINDERS -->
+<section class="page" id="reminders">
+  <div class="card">
+    <h2>⏰ Study Reminders</h2>
+    <input id="rTitle" placeholder="Reminder / Subject name">
+    <input id="rTime" type="time">
+    <select id="rDay">
+      <option>Every day</option>
+      <option>Monday</option><option>Tuesday</option>
+      <option>Wednesday</option><option>Thursday</option>
+      <option>Friday</option><option>Saturday</option><option>Sunday</option>
+    </select>
+    <button class="primary" onclick="addReminder()">＋ Save Reminder</button>
+    <button class="secondary" onclick="enableNotifications()">🔔 Enable Notifications</button>
+  </div>
+  <div class="card">
+    <h3>My Reminders</h3>
+    <div id="remList"></div>
+  </div>
+</section>
+
+<!-- TIMETABLE -->
+<section class="page" id="timetable">
+  <div class="card">
+    <h2>📅 Weekly Timetable</h2>
+    <input id="tSubject" placeholder="Subject">
+    <select id="tDay">
+      <option>Monday</option><option>Tuesday</option>
+      <option>Wednesday</option><option>Thursday</option>
+      <option>Friday</option><option>Saturday</option><option>Sunday</option>
+    </select>
+    <input id="tTime" type="time">
+    <button class="primary" onclick="addTimetable()">＋ Add Class</button>
+  </div>
+  <div class="card">
+    <h3>My Schedule</h3>
+    <div id="ttList"></div>
+  </div>
+</section>
+
+<!-- TIMER -->
+<section class="page" id="timer">
+  <div class="card">
+    <h2>⏱️ Pomodoro Timer</h2>
+    <select id="timerSubject">
+      <option>General Study</option>
+      <option>Mathematics</option>
+      <option>Physics</option>
+      <option>C Programming</option>
+      <option>Engineering</option>
+      <option>Other</option>
+    </select>
+    <div class="timer" id="clock">60:00</div>
+    <p style="text-align:center" id="timerStatus">Ready to focus</p>
+    <button class="primary" onclick="startTimer()">▶ Start</button>
+    <button class="secondary" onclick="pauseTimer()">⏸ Pause</button>
+    <button class="secondary" onclick="resetTimer()">↻ Reset</button>
+    <button class="secondary" onclick="breakTimer()">☕ 5 Minute Break</button>
+  </div>
+</section>
+
+<!-- PROGRESS -->
+<section class="page" id="progress">
+  <div class="card">
+    <h2>📊 Study Progress</h2>
+    <h3 id="progressTotal">0 min</h3>
+    <div class="progressbar"><div class="fill" id="progressFill"></div></div>
+    <p class="small">Daily goal progress</p>
+  </div>
+  <div class="card">
+    <h3>Subject Breakdown</h3>
+    <div id="subjectStats"></div>
+  </div>
+  <div class="card">
+    <h3>Recent Sessions</h3>
+    <div id="history"></div>
+  </div>
+  <div class="card">
+    <button class="secondary" onclick="exportData()">📥 Export Data</button>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section class="page" id="settings">
+  <div class="card">
+    <h2>⚙️ Settings</h2>
+    <label>Daily study goal (minutes)</label>
+    <input id="goalInput" type="number" min="1" placeholder="120">
+    <button class="primary" onclick="saveGoal()">Save Goal</button>
+  </div>
+  <div class="card">
+    <h3>About</h3>
+    <p class="small">Smart Study Reminder</p>
+    <p class="small">Version 2.0</p>
+    <p class="small">Your study data is saved on this device.</p>
+  </div>
+  <div class="card">
+    <button class="danger" onclick="resetApp()">🗑️ Reset All App Data</button>
+  </div>
+</section>
+
+</main>
+
+<nav>
+  <button class="active" onclick="go('dashboard')"><span>🏠</span>Home</button>
+  <button onclick="go('reminders')"><span>⏰</span>Reminders</button>
+  <button onclick="go('timetable')"><span>📅</span>Schedule</button>
+  <button onclick="go('timer')"><span>⏱️</span>Timer</button>
+  <button onclick="go('progress')"><span>📊</span>Progress</button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+// ---------- DATA ----------
+let data;
+try {
+  data = JSON.parse(localStorage.getItem("smartStudyData")) || {};
+} catch(e) {
+  data = {};
+}
+
+data.reminders = data.reminders || [];
+data.timetable = data.timetable || [];
+data.sessions = data.sessions || [];
+data.streak = data.streak || 0;
+data.lastDate = data.lastDate || "";
+data.goal = data.goal || 120;
+
+function save() {
+  localStorage.setItem("smartStudyData", JSON.stringify(data));
+  render();
+}
+
+// ---------- MENU ----------
+function openMenu() {
+  document.getElementById("drawer").classList.add("open");
+  document.getElementById("overlay").classList.add("show");
+}
+
+function closeMenu() {
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("overlay").classList.remove("show");
+}
+
+function go(page) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById(page).classList.add("active");
+
+  document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
+
+  const pages = ["dashboard","reminders","timetable","timer","progress"];
+  const index = pages.indexOf(page);
+  if(index >= 0) document.querySelectorAll("nav button")[index].classList.add("active");
+
+  closeMenu();
+  render();
+  window.scrollTo(0,0);
+}
+
+// ---------- TOAST ----------
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.innerText = msg;
+  el.style.display = "block";
+  setTimeout(() => el.style.display = "none", 2200);
+}
+
+// ---------- REMINDERS ----------
+function addReminder() {
+  const title = document.getElementById("rTitle").value.trim();
+  const time = document.getElementById("rTime").value;
+  const day = document.getElementById("rDay").value;
+
+  if(!title || !time) return toast("Enter title and time");
+
+  data.reminders.push({id:Date.now(),title,time,day});
+  document.getElementById("rTitle").value = "";
+  document.getElementById("rTime").value = "";
+  save();
+  toast("Reminder saved!");
+}
+
+function delReminder(id) {
+  data.reminders = data.reminders.filter(r => r.id !== id);
+  save();
+}
+
+function renderReminders() {
+  const list = document.getElementById("remList");
+  const dash = document.getElementById("dashReminders");
+  list.innerHTML = "";
+  dash.innerHTML = "";
+
+  if(!data.reminders.length) {
+    list.innerHTML = '<div class="empty">No reminders yet</div>';
+    dash.innerHTML = '<div class="empty">No reminders today</div>';
+    return;
+  }
+
+  const today = new Date().toLocaleDateString("en-US",{weekday:"long"});
+
+  data.reminders.forEach(r => {
+    const html = `<div class="item">
+      <div><b>${safe(r.title)}</b><small>${safe(r.day)} • ${safe(r.time)}</small></div>
+      <button class="danger" onclick="delReminder(${r.id})">✕</button>
+    </div>`;
+
+    list.innerHTML += html;
+    if(r.day === today || r.day === "Every day") dash.innerHTML += html;
+  });
+}
+
+// ---------- TIMETABLE ----------
+function addTimetable() {
+  const subject = document.getElementById("tSubject").value.trim();
+  const day = document.getElementById("tDay").value;
+  const time = document.getElementById("tTime").value;
+
+  if(!subject || !time) return toast("Enter subject and time");
+
+  data.timetable.push({id:Date.now(),subject,day,time});
+  document.getElementById("tSubject").value = "";
+  document.getElementById("tTime").value = "";
+  save();
+  toast("Timetable saved");
+}
+
+function delClass(id) {
+  data.timetable = data.timetable.filter(t => t.id !== id);
+  save();
+}
+
+function renderTimetable() {
+  const el = document.getElementById("ttList");
+  el.innerHTML = "";
+
+  const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+
+  days.forEach(day => {
+    const entries = data.timetable.filter(t => t.day === day)
+      .sort((a,b) => a.time.localeCompare(b.time));
+
+    if(entries.length) {
+      el.innerHTML += `<h3 style="margin-top:15px">${day}</h3>`;
+      entries.forEach(t => {
+        el.innerHTML += `<div class="day">
+          <b>${safe(t.subject)}</b><br>
+          <small>${safe(t.time)}</small><br>
+          <button class="danger" onclick="delClass(${t.id})">Delete</button>
+        </div>`;
+      });
+    }
+  });
+
+  if(!data.timetable.length) el.innerHTML = '<div class="empty">No classes added</div>';
+}
+
+// ---------- TIMER ----------
+let secs = 1500;
+let interval = null;
+let running = false;
+let isBreak = false;
+
+function showClock() {
+  document.getElementById("clock").innerText =
+    String(Math.floor(secs/60)).padStart(2,"0") + ":" +
+    String(secs%60).padStart(2,"0");
+}
+
+function startTimer() {
+  if(running) return;
+  running = true;
+  document.getElementById("timerStatus").innerText = isBreak ? "Break time ☕" : "Focus time 📚";
+
+  interval = setInterval(() => {
+    secs--;
+    showClock();
+
+    if(secs <= 0) {
+      clearInterval(interval);
+      running = false;
+
+      if(!isBreak) {
+        record(60,document.getElementById("timerSubject").value);
+        toast("Study session completed! ☕");
+        if("Notification" in window && Notification.permission === "granted") {
+          new Notification("Study session complete! Take a break.");
+        }
+      } else {
+        toast("Break finished! Back to studying 💪");
+      }
+
+      isBreak = false;
+      secs = 1500;
+      showClock();
+      document.getElementById("timerStatus").innerText = "Completed!";
+    }
+  },1000);
+}
+
+function pauseTimer() {
+  clearInterval(interval);
+  running = false;
+  document.getElementById("timerStatus").innerText = "Paused";
+}
+
+function resetTimer() {
+  clearInterval(interval);
+  running = false;
+  isBreak = false;
+  secs = 1500;
+  showClock();
+  document.getElementById("timerStatus").innerText = "Ready to focus";
+}
+
+function breakTimer() {
+  clearInterval(interval);
+  running = false;
+  isBreak = true;
+  secs = 300;
+  showClock();
+  document.getElementById("timerStatus").innerText = "Break time ☕";
+}
+
+// ---------- RECORD STUDY ----------
+function record(minutes,subject) {
+  const today = new Date().toISOString().slice(0,10);
+  data.sessions.push({id:Date.now(),minutes,subject,date:today});
+
+  if(data.lastDate !== today) {
+    const y = new Date();
+    y.setDate(y.getDate()-1);
+    const yesterday = y.toISOString().slice(0,10);
+    data.streak = data.lastDate === yesterday ? data.streak+1 : 1;
+    data.lastDate = today;
+  }
+  save();
+}
+
+// ---------- PROGRESS ----------
+function renderProgress() {
+  const total = data.sessions.reduce((s,x)=>s+x.minutes,0);
+  const today = new Date().toISOString().slice(0,10);
+  const todayM = data.sessions.filter(s=>s.date===today).reduce((a,s)=>a+s.minutes,0);
+
+  document.getElementById("totalTime").innerText = fmt(total);
+  document.getElementById("progressTotal").innerText = fmt(total);
+  document.getElementById("streak").innerText = data.streak+" days";
+  document.getElementById("sessionCount").innerText = data.sessions.length;
+  document.getElementById("remCount").innerText = data.reminders.length;
+  document.getElementById("todayText").innerText = todayM+" minutes studied";
+  document.getElementById("goalLabel").innerText = "Goal: "+data.goal+" min • "+Math.round(todayM/data.goal*100)+"%";
+
+  const percent = Math.min(todayM/data.goal*100,100);
+  document.getElementById("todayFill").style.width = percent+"%";
+  document.getElementById("progressFill").style.width = percent+"%";
+
+  const subjects = {};
+  data.sessions.forEach(s=>subjects[s.subject]=(subjects[s.subject]||0)+s.minutes);
+
+  const ss = document.getElementById("subjectStats");
+  ss.innerHTML = "";
+
+  Object.entries(subjects).forEach(([name,m])=>{
+    ss.innerHTML += `<div style="margin:12px 0">
+      <b>${safe(name)}</b><span style="float:right">${fmt(m)}</span>
+      <div class="progressbar"><div class="fill" style="width:${total?m/total*100:0}%"></div></div>
+    </div>`;
+  });
+
+  if(!Object.keys(subjects).length) ss.innerHTML = '<div class="empty">No study data yet</div>';
+
+  const hist = document.getElementById("history");
+  hist.innerHTML = "";
+
+  [...data.sessions].reverse().slice(0,10).forEach(s=>{
+    hist.innerHTML += `<div class="item"><div><b>${safe(s.subject)}</b><small>${s.date}</small></div><b>${s.minutes} min</b></div>`;
+  });
+
+  if(!data.sessions.length) hist.innerHTML = '<div class="empty">No completed sessions</div>';
+}
+
+function fmt(m) {
+  return Math.floor(m/60)>0 ? Math.floor(m/60)+" hr "+m%60+" min" : m+" min";
+}
+
+// ---------- SETTINGS ----------
+function saveGoal() {
+  const n = Number(document.getElementById("goalInput").value);
+  if(!n || n < 1) return toast("Enter a valid goal");
+  data.goal = n;
+  save();
+  toast("Daily goal updated!");
+}
+
+function resetApp() {
+  if(confirm("Delete all saved app data?")) {
+    localStorage.removeItem("smartStudyData");
+    location.reload();
+  }
+}
+
+// ---------- NOTIFICATIONS ----------
+async function enableNotifications() {
+  if(!("Notification" in window)) return toast("Notifications unsupported");
+  const permission = await Notification.requestPermission();
+  toast(permission === "granted" ? "Notifications enabled!" : "Permission not granted");
+}
+
+// ---------- EXPORT ----------
+function exportData() {
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url;
+  a.download="smart-study-data.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------- SAFETY ----------
+function safe(s) {
+  return String(s).replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+// ---------- RENDER ----------
+function render() {
+  renderReminders();
+  renderTimetable();
+  renderProgress();
+  document.getElementById("goalInput").value = data.goal;
+}
+
+document.getElementById("date").innerText =
+  new Date().toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"short",year:"numeric"});
+
+showClock();
+render();
+// ======================================
+// SMART STUDY REMINDER - NOTIFICATIONS
+// ======================================
+
+(function () {
+  const notificationStorageKey = "studyReminderSent_v1";
+
+  function getSentNotifications() {
+    try {
+      return JSON.parse(
+        localStorage.getItem(notificationStorageKey) || "{}"
+      );
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveSentNotifications(sent) {
+    localStorage.setItem(
+      notificationStorageKey,
+      JSON.stringify(sent)
+    );
+  }
+
+  // Get reminders from existing project data
+  function getMyReminders() {
+    try {
+      if (typeof data !== "undefined" && data.reminders) {
+        return data.reminders;
+      }
+    } catch (e) {}
+
+    return [];
+  }
+
+  // Convert reminder date/time into a timestamp
+  function getReminderTime(reminder) {
+    const possibleDateTime =
+      reminder.datetime ||
+      reminder.dateTime ||
+      reminder.dueAt ||
+      reminder.when;
+
+    if (possibleDateTime) {
+      const parsed = new Date(possibleDateTime).getTime();
+
+      if (!isNaN(parsed)) return parsed;
+    }
+
+    if (reminder.date && reminder.time) {
+      const parsed = new Date(
+        reminder.date + " " + reminder.time
+      ).getTime();
+
+      if (!isNaN(parsed)) return parsed;
+    }
+
+    return null;
+  }
+
+  // Send a notification
+  function sendStudyNotification(title, message) {
+    if (!("Notification" in window)) {
+      alert("Notifications are not supported in this browser.");
+      return;
+    }
+
+    if (Notification.permission === "granted") {
+      new Notification(title, {
+        body: message,
+        icon: "",
+        tag: "smart-study-reminder"
+      });
+    }
+  }
+
+  // Check reminders
+  function checkStudyReminders() {
+    if (!("Notification" in window)) return;
+
+    if (Notification.permission !== "granted") return;
+
+    const reminders = getMyReminders();
+    const sent = getSentNotifications();
+
+    if (!Array.isArray(reminders)) return;
+
+    const now = Date.now();
+
+    reminders.forEach(function (reminder, index) {
+      if (!reminder) return;
+
+      const reminderTime = getReminderTime(reminder);
+
+      if (!reminderTime) return;
+
+      // Notify when reminder time arrives
+      if (
+        reminderTime <= now &&
+        reminderTime > now - 60000
+      ) {
+        const id =
+          reminder.id ||
+          reminder.title ||
+          reminder.subject ||
+          ("reminder_" + index + "_" + reminderTime);
+
+        if (sent[id]) return;
+
+        const title =
+          reminder.title ||
+          reminder.subject ||
+          reminder.name ||
+          "Study Reminder";
+
+        const message =
+          reminder.message ||
+          reminder.text ||
+          reminder.description ||
+          "It's time to study!";
+
+        sendStudyNotification(title, message);
+
+        sent[id] = true;
+        saveSentNotifications(sent);
+      }
+    });
+  }
+
+  // Create notification controls
+  function createNotificationPanel() {
+    if (document.getElementById("studyNotificationPanel")) return;
+
+    const panel = document.createElement("div");
+
+    panel.id = "studyNotificationPanel";
+
+    panel.style.cssText = `
+      position:relative;
+      right:auto;
+      bottom:auto;
+      z-index:10;
+      width:100%;
+      max-width:100%;
+      box-sizing:border-box;
+      margin:20px 0;
+      background:#171c2c;
+      color:white;
+      padding:14px;
+      border-radius:16px;
+      box-shadow:0 5px 25px rgba(0,0,0,.4);
+      font-family:Arial,sans-serif;
+      border:1px solid #39445f;
+    `;
+
+    panel.innerHTML = `
+      <div style="font-weight:bold;margin-bottom:10px">
+        🔔 Study Notifications
+      </div>
+
+      <button id="enableStudyNotifications"
+        style="width:100%;padding:10px;border:0;
+        border-radius:9px;background:#6366f1;color:white;
+        margin-bottom:7px;font-weight:bold">
+        Enable Notifications
+      </button>
+
+      <button id="testStudyNotification"
+        style="width:100%;padding:10px;border:0;
+        border-radius:9px;background:#29334b;color:white">
+        Test Notification
+      </button>
+
+      <div id="studyNotificationStatus"
+        style="font-size:12px;margin-top:9px;color:#cbd5e1">
+        Permission not checked
+      </div>
+    `;
+
+    const dashboard = document.querySelector("main");
+
+if (dashboard) {
+  dashboard.appendChild(panel);
+} else {
+  const homePage = document.getElementById("home");
+
+if (homePage) {
+  homePage.appendChild(panel);
+}
+}
+
+    const status = document.getElementById(
+      "studyNotificationStatus"
+    );
+
+    const enableButton = document.getElementById(
+      "enableStudyNotifications"
+    );
+
+    const testButton = document.getElementById(
+      "testStudyNotification"
+    );
+
+    function updateStatus() {
+      if (!("Notification" in window)) {
+        status.textContent =
+          "Notifications unsupported";
+        return;
+      }
+
+      status.textContent =
+        "Permission: " + Notification.permission;
+    }
+
+    enableButton.onclick = async function () {
+      if (!("Notification" in window)) {
+        alert("Your browser does not support notifications.");
+        return;
+      }
+
+      const permission =
+        await Notification.requestPermission();
+
+      updateStatus();
+
+      if (permission === "granted") {
+        alert("Notifications enabled successfully! 🔔");
+        checkStudyReminders();
+      } else {
+        alert("Notification permission was not granted.");
+      }
+    };
+
+    testButton.onclick = function () {
+      if (!("Notification" in window)) {
+        alert("Notifications are not supported.");
+        return;
+      }
+
+      if (Notification.permission !== "granted") {
+        alert("First tap Enable Notifications.");
+        return;
+      }
+
+      sendStudyNotification(
+        "Smart Study Reminder 🎓",
+        "Your notification system is working!"
+      );
+    };
+
+    updateStatus();
+  }
+
+  // Start the notification system
+  function startStudyNotificationSystem() {
+    createNotificationPanel();
+
+    checkStudyReminders();
+
+    // Check every 30 seconds while the page is running
+    setInterval(checkStudyReminders, 30000);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      startStudyNotificationSystem
+    );
+  } else {
+    startStudyNotificationSystem();
+  }
+
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./sw.js")
+      .then(function (registration) {
+        console.log("PWA ready:", registration.scope);
+      })
+      .catch(function (error) {
+        console.error("PWA error:", error);
+      });
+  });
+}
+</script>
+</body>
+</html>
